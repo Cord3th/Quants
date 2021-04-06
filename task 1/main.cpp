@@ -53,16 +53,23 @@ int main(int argc, char **argv) {
 
 	a_start_time = omp_get_wtime();
 
+	double norm_length_ = 0;
 	srand(omp_get_wtime());
 	int temp_seed = rand();
 	#pragma omp parallel
 	{
 		unsigned int seed = temp_seed * (omp_get_thread_num() + 1);
-		#pragma omp for
+		#pragma omp for reduction(+ : norm_length_)
 		for (size_t i = 0; i < num_qubits; ++i) {
 			a[i] = complexd(((double) rand_r(&seed)) / RAND_MAX,
 							((double) rand_r(&seed)) / RAND_MAX);
+			norm_length_ += norm(a[i]);
 		}
+	}
+	norm_length_ = sqrt(norm_length_);
+	#pragma omp for
+	for (size_t i = 0; i < num_qubits; ++i) {
+		a[i] = a[i] / norm_length_;
 	}
 
 	a_end_time = omp_get_wtime();
