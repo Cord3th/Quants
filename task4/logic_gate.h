@@ -2,9 +2,6 @@
 #include <mpi.h>
 #include <complex>
 #include <vector>
-#ifndef SEM6_TASK4_QUANTUM_LOGIC_GATE__LOGIC_GATE_H_
-#define SEM6_TASK4_QUANTUM_LOGIC_GATE__LOGIC_GATE_H_
-#endif   //  SEM6_TASK4_QUANTUM_LOGIC_GATE__LOGIC_GATE_H_
 
 using namespace std;
 typedef std::complex<double> complexd;
