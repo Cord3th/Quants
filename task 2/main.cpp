@@ -14,22 +14,22 @@ vector<complexd> QubitTransform(vector<complexd>& a, int n,
 								vector<vector<complexd>>& u, int k,
 								long proc_exp, int rank) {
 	long vec_length = 1 << (n - proc_exp),
-		 temp = 1 << (n - k),
+		 shift = 1 << (n - k),
 		 start_idx = vec_length * rank;
 	vector<complexd> b(vec_length);
-	if (temp < vec_length) {
+	if (shift < vec_length) {
 		for (long i = 0; i < vec_length; ++i) {
-			b[i] = u[(i + start_idx) & temp >> (n - k)][0]
-				   * a[(((i + start_idx) | temp) ^ temp) - start_idx]
-				 + u[((i + start_idx) & temp) >> (n - k)][1]
-				   * a[((i + start_idx) | temp) - start_idx];
+			b[i] = u[(i + start_idx) & shift >> (n - k)][0]
+				   * a[(((i + start_idx) | shift) ^ shift) - start_idx]
+				 + u[((i + start_idx) & shift) >> (n - k)][1]
+				   * a[((i + start_idx) | shift) - start_idx];
 		}
 	} else {
 		int dest_src_rank;
-		if ((start_idx & temp) == 0) {
-			dest_src_rank = (start_idx | temp) / vec_length;
+		if ((start_idx & shift) == 0) {
+			dest_src_rank = (start_idx | shift) / vec_length;
 		} else {
-			dest_src_rank = (start_idx & ~temp) / vec_length;
+			dest_src_rank = (start_idx & ~shift) / vec_length;
 		}
 		vector<complexd> tmp(vec_length);
 		MPI_Sendrecv(a.data(), vec_length * 2, MPI_DOUBLE, dest_src_rank, 0, tmp.data(), vec_length * 2,
@@ -43,8 +43,8 @@ vector<complexd> QubitTransform(vector<complexd>& a, int n,
 			vec_1 = a;
 		}
 		for (long i = 0; i < vec_length; ++i) {
-			b[i] = u[(i + start_idx) & temp >> (n - k)][0] * vec_0[i]
-				 + u[((i + start_idx) & temp) >> (n - k)][1] * vec_1[i];
+			b[i] = u[(i + start_idx) & shift >> (n - k)][0] * vec_0[i]
+				 + u[((i + start_idx) & shift) >> (n - k)][1] * vec_1[i];
 		}
 	}
 	return b;
@@ -106,12 +106,8 @@ int main(int argc, char **argv) {
 	for (size_t i = 0; i < 2; ++i) {
 		u[i].resize(2);
 	}
-	for (size_t i = 0; i < 2; ++i) {
-		for (size_t j = 0; j < 2; ++j) {
-				u[i][j] = 1.0 / sqrt(2);
-		}
-	}
-	u[1][1] *= -1;
+	u[0][0] = u[0][1] = u[1][0] = 1.0 / sqrt(2.0);
+    u[1][1] = -u[0][0];
 
 	int rank, size;
 	MPI_Init(&argc, &argv);
@@ -156,19 +152,16 @@ int main(int argc, char **argv) {
 	b_end_time = MPI_Wtime();
 
 
-	double time1 = a_end_time - a_start_time;
-	double time2 = b_end_time - b_start_time;
-	double timelocal = time1 + time2;
-	double sumtime1, sumtime2, maxtime;
-	MPI_Reduce(&time1, &sumtime1, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-	MPI_Reduce(&time2, &sumtime2, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-	MPI_Reduce(&timelocal, &maxtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+	double a_time = a_end_time - a_start_time,
+		   b_time = b_end_time - b_start_time;
+	double local_sum = a_time + b_time, max_time;
+	MPI_Reduce(&local_sum, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
 	if (rank == 0) {
-		cout << "sumtime1: " << sumtime1 <<" sumtime2: " << sumtime2 << " maxtime: " << maxtime << endl;
+		cout << max_time << endl;
 	}
 
-	FileWrite(b, vec_length, rank, n);
+	//FileWrite(b, vec_length, rank, n);
 
 	MPI_Finalize();
 	return 0;
