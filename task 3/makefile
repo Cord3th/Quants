@@ -1,5 +1,5 @@
 main: main.cpp
-	mpicxx -std=c++11 -O3 -o main main.cpp
+	mpicxx -std=c++11 -O3 -o main main.cpp -fopenmp
 
 
 tobin: tobin.cpp
