@@ -37,15 +37,12 @@ vector<complexd> QubitTransform(vector<complexd>& a, int n,
  		 start_idx = vec_length * rank;
 	vector<complexd> b(vec_length);
     if (temp < vec_length) {
-        #pragma omp parallel
-        {
-            #pragma omp for
-            for (int i = 0; i < vec_length; ++i) {
-            b[i] = u[((i + start_idx) & temp) >> (n - k)][0]
-                   * a[(((i + start_idx) | temp) ^ temp) - start_idx]
-                 + u[((i + start_idx) & temp) >> (n - k)][1]
-                   * a[((i + start_idx) | temp) - start_idx];
-            }
+        #pragma omp parallel for
+        for (int i = 0; i < vec_length; ++i) {
+        b[i] = u[((i + start_idx) & temp) >> (n - k)][0]
+               * a[(((i + start_idx) | temp) ^ temp) - start_idx]
+             + u[((i + start_idx) & temp) >> (n - k)][1]
+               * a[((i + start_idx) | temp) - start_idx];
         }
     } else {
         int dest_src_rank;
@@ -65,13 +62,10 @@ vector<complexd> QubitTransform(vector<complexd>& a, int n,
             vec_0 = tmp;
             vec_1 = a;
         }
-        #pragma omp parallel
-        {
-            #pragma omp for
-            for (int i = 0; i < vec_length; ++i) {
-                b[i] = u[((i + start_idx) & temp) >> (n - k)][0] * vec_0[i]
-                + u[((i + start_idx) & temp) >> (n - k)][1] * vec_1[i];
-            }
+        #pragma omp parallel for
+        for (int i = 0; i < vec_length; ++i) {
+            b[i] = u[((i + start_idx) & temp) >> (n - k)][0] * vec_0[i]
+            + u[((i + start_idx) & temp) >> (n - k)][1] * vec_1[i];
         }
     }
     return b;
@@ -129,27 +123,24 @@ int main(int argc, char **argv) {
     long vec_length = 1 << (n - proc_exp);
     vector<complexd> a(vec_length);
 
-    //a_start_time = MPI_Wtime();
+    a_start_time = MPI_Wtime();
 
     if (mode == 2) {
         double norm_length_ = 0, temp;
-        #pragma omp parallel
-    	{
-    		#pragma omp for reduction(+ : norm_length_)
+        //#pragma omp parallel
+    	//{
+    	//	#pragma omp for reduction(+ : norm_length_)
             for (int i = 0; i < vec_length; ++i) {
                 a[i] = complexd(((double) rand()) / RAND_MAX,
     							((double) rand()) / RAND_MAX);
                 norm_length_ += norm(a[i]);
             }
-        }
+        //}
         MPI_Allreduce(&norm_length_, &temp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         norm_length_ = sqrt(temp);
-        #pragma omp parallel
-    	{
-    		#pragma omp for
-            for (int i = 0; i < vec_length; ++i) {
-                a[i] = a[i] / norm_length_;
-            }
+        #pragma omp parallel for
+        for (int i = 0; i < vec_length; ++i) {
+            a[i] = a[i] / norm_length_;
         }
     } else {
         FileRead(a, vec_length, rank);
@@ -163,7 +154,7 @@ int main(int argc, char **argv) {
             a[i] = a[i] / norm_length_;
         }
     }
-	//a_end_time = MPI_Wtime();
+	a_end_time = MPI_Wtime();
 
     vector<vector<complexd>> u_noisy(2);
 
@@ -171,18 +162,19 @@ int main(int argc, char **argv) {
 		u_noisy[i].resize(2);
 	}
 
-    //b_start_time = MPI_Wtime();
+    b_start_time = MPI_Wtime();
     vector<complexd> temp;
-    vector<complexd> b = QubitTransform(a, n, u, 1, proc_exp, rank);
+    /*vector<complexd> b = QubitTransform(a, n, u, 1, proc_exp, rank);
 
     for (int i = 2; i <= n; ++i) {
         temp = b;
         b = QubitTransform(temp, n, u, i, proc_exp, rank);
-    }
+    }*/
 
-    for (int j = 0; j < 60; ++j) {
+    //for (int j = 0; j < 60; ++j) {
         double ksi[n];
         if (rank == 0) {
+            #pragma omp parallel for
             for (int i = 0; i < n; ++i) {
                 ksi[i] = eps * NormalDisGen();
             }
@@ -198,7 +190,7 @@ int main(int argc, char **argv) {
             MakeNoisy(u, u_noisy, ksi[i - 1]);
             b_noisy = QubitTransform(temp, n, u_noisy, i, proc_exp, rank);
         }
-
+/*
         complexd c = 0;
         for (int i = 0; i < vec_length; ++i) {
             c += abs(b_noisy[i] * conj(b[i]));
@@ -213,10 +205,10 @@ int main(int argc, char **argv) {
             fstream fout("answer", ios::out | ios::app);
             fout << 1 -  res * res << endl;
             fout.close();
-        }
-    }
+        }*/
+    //}
 
-    /*b_end_time = MPI_Wtime();
+    b_end_time = MPI_Wtime();
 
 	double a_time = a_end_time - a_start_time,
 		   b_time = b_end_time - b_start_time;
@@ -225,7 +217,7 @@ int main(int argc, char **argv) {
 	if (rank == 0) {
 		cout << max_time << endl;
 	}
-*/
+
     MPI_Finalize();
 
     return 0;
