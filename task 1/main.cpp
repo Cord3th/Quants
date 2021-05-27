@@ -13,15 +13,15 @@ using namespace std;
 
 vector<complexd> single_qubit_transform(vector<complexd>& a, vector<vector<complexd>>& u,
 								  size_t n, size_t k) {
-	size_t num_qubits = 1 << n, temp = 1 << (n - k);
+	size_t num_qubits = 1 << n, shift = 1 << (n - k);
 	vector<complexd> b(num_qubits);
 
 	#pragma omp parallel
 	{
 		#pragma omp for
 		for (size_t i = 0; i < num_qubits; ++i) {
-			b[i] = u[(i & temp) >> (n - k)][0] * a[(i | temp) ^ temp]
-			+ u[(i & temp) >> (n - k)][1] * a[i | temp];
+			b[i] = u[(i & shift) >> (n - k)][0] * a[(i | shift) ^ shift]
+			+ u[(i & shift) >> (n - k)][1] * a[i | shift];
 		}
 	}
 
@@ -44,12 +44,8 @@ int main(int argc, char **argv) {
 	for (size_t i = 0; i < 2; ++i) {
 		u[i].resize(2);
 	}
-	for (size_t i = 0; i < 2; ++i) {
-		for (size_t j = 0; j < 2; ++j) {
-				u[i][j] = 1.0 / sqrt(2);
-		}
-	}
-	u[1][1] *= -1;
+	u[0][0] = u[0][1] = u[1][0] = 1.0 / sqrt(2.0);
+    u[1][1] = -u[0][0];
 
 	a_start_time = omp_get_wtime();
 
