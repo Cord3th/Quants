@@ -33,23 +33,23 @@ vector<complexd> QubitTransform(vector<complexd>& a, int n,
                                  vector<vector<complexd>>& u, int k,
                                  long proc_exp, int rank) {
     long vec_length = 1 << (n - proc_exp),
- 		 temp = 1 << (n - k),
+ 		 shift = 1 << (n - k),
  		 start_idx = vec_length * rank;
 	vector<complexd> b(vec_length);
-    if (temp < vec_length) {
+    if (shift < vec_length) {
         #pragma omp parallel for
         for (int i = 0; i < vec_length; ++i) {
-        b[i] = u[((i + start_idx) & temp) >> (n - k)][0]
-               * a[(((i + start_idx) | temp) ^ temp) - start_idx]
-             + u[((i + start_idx) & temp) >> (n - k)][1]
-               * a[((i + start_idx) | temp) - start_idx];
+        b[i] = u[((i + start_idx) & shift) >> (n - k)][0]
+               * a[(((i + start_idx) | shift) ^ shift) - start_idx]
+             + u[((i + start_idx) & shift) >> (n - k)][1]
+               * a[((i + start_idx) | shift) - start_idx];
         }
     } else {
         int dest_src_rank;
-        if ((start_idx & temp) == 0) {
-            dest_src_rank = (start_idx | temp) / vec_length;
+        if ((start_idx & shift) == 0) {
+            dest_src_rank = (start_idx | shift) / vec_length;
         } else {
-            dest_src_rank = (start_idx & ~temp) / vec_length;
+            dest_src_rank = (start_idx & ~shift) / vec_length;
         }
 		vector<complexd> tmp(vec_length);
         MPI_Sendrecv(a.data(), vec_length * 2, MPI_DOUBLE, dest_src_rank, 0, tmp.data(), vec_length * 2,
@@ -64,8 +64,8 @@ vector<complexd> QubitTransform(vector<complexd>& a, int n,
         }
         #pragma omp parallel for
         for (int i = 0; i < vec_length; ++i) {
-            b[i] = u[((i + start_idx) & temp) >> (n - k)][0] * vec_0[i]
-            + u[((i + start_idx) & temp) >> (n - k)][1] * vec_1[i];
+            b[i] = u[((i + start_idx) & shift) >> (n - k)][0] * vec_0[i]
+            + u[((i + start_idx) & shift) >> (n - k)][1] * vec_1[i];
         }
     }
     return b;
@@ -104,12 +104,8 @@ int main(int argc, char **argv) {
 	for (size_t i = 0; i < 2; ++i) {
 		u[i].resize(2);
 	}
-	for (size_t i = 0; i < 2; ++i) {
-		for (size_t j = 0; j < 2; ++j) {
-				u[i][j] = 1.0 / sqrt(2);
-		}
-	}
-	u[1][1] *= -1;
+    u[0][0] = u[0][1] = u[1][0] = 1.0 / sqrt(2.0);
+    u[1][1] = -u[0][0];
 
     int rank, size;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -127,15 +123,15 @@ int main(int argc, char **argv) {
 
     if (mode == 2) {
         double norm_length_ = 0, temp;
-        //#pragma omp parallel
-    	//{
-    	//	#pragma omp for reduction(+ : norm_length_)
+        #pragma omp parallel
+    	{
+    		#pragma omp for reduction(+ : norm_length_)
             for (int i = 0; i < vec_length; ++i) {
                 a[i] = complexd(((double) rand()) / RAND_MAX,
     							((double) rand()) / RAND_MAX);
                 norm_length_ += norm(a[i]);
             }
-        //}
+        }
         MPI_Allreduce(&norm_length_, &temp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         norm_length_ = sqrt(temp);
         #pragma omp parallel for
@@ -150,6 +146,7 @@ int main(int argc, char **argv) {
         }
         MPI_Allreduce(&norm_length_, &temp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         norm_length_ = sqrt(temp);
+        #pragma omp parallel for
         for (int i = 0; i < vec_length; ++i) {
             a[i] = a[i] / norm_length_;
         }
